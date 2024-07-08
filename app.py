@@ -3,10 +3,10 @@ from tree_sitter_languages import get_parser
 import difflib
 import re
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/', static_folder='static')
 
 def percentage_4f(value):
-    return "{:.4f}".format(value * 100)
+    return "%{:.4f}".format(value * 100)
 
 # Tree-sitter parser oluştur
 
@@ -14,7 +14,7 @@ class CloneDetector:
     def __init__(self, language):
         self.parser = language_parsers[language]
 
-    def parse_code(self,code, with_order=False):
+    def parse_code(self, code, with_order=False):
         tree = self.parser.parse(bytes(code, "utf8"))
         root_node = tree.root_node
         tokens = []
@@ -29,7 +29,7 @@ class CloneDetector:
         tokens.sort()
         return tokens
 
-    def remove_comments_and_whitespace(self,code):
+    def remove_comments_and_whitespace(self, code):
         tree = self.parser.parse(bytes(code, "utf8"))
         root_node = tree.root_node
 
@@ -42,20 +42,20 @@ class CloneDetector:
 
         return extract_text(root_node)
 
-    def text_similarity(self,code1, code2):
+    def text_similarity(self, code1, code2):
         seqm = difflib.SequenceMatcher(None, code1, code2)
         return seqm.ratio()
 
-    def token_similarity(self,code1, code2, with_order=False):
+    def token_similarity(self, code1, code2, with_order=False):
         tokens1 = self.parse_code(code1, with_order)
         tokens2 = self.parse_code(code2, with_order)
         seqm = difflib.SequenceMatcher(None, tokens1, tokens2)
         return seqm.ratio()
 
-    def is_exact_clone(self,code1, code2):
+    def is_exact_clone(self, code1, code2):
         return code1.strip() == code2.strip()
 
-    def renamed_clone_similarity(self,code1, code2):
+    def renamed_clone_similarity(self, code1, code2):
         def extract_identifiers(code):
             identifiers = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', code)
             keywords = {'if', 'else', 'for', 'while', 'return', 'int', 'float', 'double', 'char', 'void', 'include'}
@@ -67,33 +67,33 @@ class CloneDetector:
 
         return len(ids1 & ids2) / len(ids1 | ids2)
 
-    def near_miss_clone_similarity(self,code1, code2, threshold=0.8):
+    def near_miss_clone_similarity(self, code1, code2, threshold=0.8):
         text_sim = self.text_similarity(code1, code2)
         token_sim = self.token_similarity(code1, code2)
         token_sim_without_comments = self.token_similarity(self.remove_comments_and_whitespace(code1), self.remove_comments_and_whitespace(code2))
         return text_sim > threshold or token_sim > threshold or token_sim_without_comments > threshold
 
-    def parameterized_clone_similarity(self,code1, code2, threshold=0.8):
+    def parameterized_clone_similarity(self, code1, code2, threshold=0.8):
         return self.near_miss_clone_similarity(code1, code2, threshold)
 
-    def function_clone_similarity(self,code1, code2, threshold=0.8):
+    def function_clone_similarity(self, code1, code2, threshold=0.8):
         return self.near_miss_clone_similarity(code1, code2, threshold)
 
-    def non_contiguous_clone_similarity(self,code1, code2, threshold=0.8):
+    def non_contiguous_clone_similarity(self, code1, code2, threshold=0.8):
         token_sim_without_order = self.token_similarity(code1, code2, with_order=False)
         token_sim_with_order = self.token_similarity(code1, code2, with_order=True)
         return token_sim_without_order > threshold or token_sim_with_order > threshold
 
-    def structural_clone_similarity(self,code1, code2, threshold=0.8):
+    def structural_clone_similarity(self, code1, code2, threshold=0.8):
         return self.token_similarity(code1, code2, with_order=True) > threshold
 
-    def reordered_clone_similarity(self,code1, code2, threshold=0.8):
+    def reordered_clone_similarity(self, code1, code2, threshold=0.8):
         return self.token_similarity(code1, code2, with_order=False) > threshold
 
-    def function_reordered_clone_similarity(self,code1, code2, threshold=0.8):
+    def function_reordered_clone_similarity(self, code1, code2, threshold=0.8):
         return self.reordered_clone_similarity(code1, code2, threshold)
 
-    def gapped_clone_similarity(self,code1, code2, threshold=0.8):
+    def gapped_clone_similarity(self, code1, code2, threshold=0.8):
         tokens1 = self.parse_code(code1)
         tokens2 = self.parse_code(code2)
         matcher = difflib.SequenceMatcher(None, tokens1, tokens2)
@@ -101,7 +101,7 @@ class CloneDetector:
         match_ratio = sum(triple.size for triple in blocks) / min(len(tokens1), len(tokens2))
         return match_ratio > threshold
 
-    def intertwined_clone_similarity(self,code1, code2, threshold=0.8):
+    def intertwined_clone_similarity(self, code1, code2, threshold=0.8):
         tokens1 = self.parse_code(code1)
         tokens2 = self.parse_code(code2)
         matcher = difflib.SequenceMatcher(None, tokens1, tokens2)
@@ -109,10 +109,11 @@ class CloneDetector:
         match_ratio = sum(triple.size for triple in blocks if triple.size > 1) / min(len(tokens1), len(tokens2))
         return match_ratio > threshold
 
-    def semantic_clone_similarity(self,code1, code2, threshold=0.8):
+    def semantic_clone_similarity(self, code1, code2, threshold=0.8):
         text_sim = self.text_similarity(code1, code2)
-        token_sim =self.token_similarity(code1, code2)
+        token_sim = self.token_similarity(code1, code2)
         return (text_sim + token_sim) / 2 > threshold
+
 languages = ['c', 'python', 'java', 'javascript']
 language_parsers = {}
 for language in languages:
@@ -123,8 +124,14 @@ for language in languages:
     clone_detectors[language] = CloneDetector(language)
 
 
+    
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    language_options_html = ''
+    for language in languages:
+        language_options_html += f'<option value="{language}">{language}</option>'
+        
     if request.method == 'POST':
         code1 = request.form['code1']
         code2 = request.form['code2']
@@ -158,18 +165,37 @@ def index():
         gapped_clone_result = detector.gapped_clone_similarity(code1, code2)
         intertwined_clone_result = detector.intertwined_clone_similarity(code1, code2)
         semantic_clone_result = detector.semantic_clone_similarity(code1, code2)
-        language_options_html = ''
-        for language in languages:
-            language_options_html += f'<option value="{language}">{language}</option>'
-        print(language_options_html)
-                
+        
+        values_list = [
+            ['Text Similarity:', text_sim],
+            ['Token Similarity (with order):', token_sim_with_order],
+            ['Token Similarity (with order ignoring comments and whitespaces):', token_sim_with_order_without_comments],
+            ['Token Similarity (without order with comments and whitespaces):', token_sim],
+            ['Token Similarity (without order ignoring comments and whitespaces):', token_sim_without_comments],
+            ['Renamed Clone Similarity:', renamed_clone_sim],
+            ['Exact Clone:', exact_clone_result],
+            ['Near-miss Clone:', near_miss_clone_result],
+            ['Parameterized Clone:', parameterized_clone_result],
+            ['Function Clone:', function_clone_result],
+            ['Non-contiguous Clone:', non_contiguous_clone_result],
+            ['Structural Clone:', structural_clone_result],
+            ['Reordered Clone:', reordered_clone_result],
+            ['Function Reordered Clone:', function_reordered_clone_result],
+            ['Gapped Clone:', gapped_clone_result],
+            ['Intertwined Clone:', intertwined_clone_result],
+            ['Semantic Clone:', semantic_clone_result]
+        ]
+        description_list = []
+        for i in values_list:
+            description_list.append(f'<dt>{i[0]}</dt><dd>{i[1]}</dd>')
+        description_list = ''.join(description_list)
 
         return render_template_string('''
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 
 <head>
-    <title>Title</title>
+    <title>Clone Detector</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="css/uikit.min.css" />
@@ -178,43 +204,46 @@ def index():
 </head>
 
 <body>
-    <form method="POST">
-        <textarea name="code1" rows="10" cols="50">{{code1}}</textarea>
-        <textarea name="code2" rows="10" cols="50">{{code2}}</textarea>
-        <select name="language">
-            {{language_options_html}}
-        </select>
-        <input type="submit" value="Compare">
-    </form>
-    <p>Text Similarity: {{text_sim}}</p>
-    <p>Token Similarity (with order): {{token_sim_with_order}}</p>
-    <p>Token Similarity (with order ignoring comments and whitespaces): {{token_sim_with_order_without_comments}}</p>
-    <p>Token Similarity (without order with comments and whitespaces): {{token_sim}}</p>
-    <p>Token Similarity (without order ignoring comments and whitespaces): {{token_sim_without_comments}}</p>
-    <p>Renamed Clone Similarity: {{renamed_clone_sim}}</p>
-    <p>Exact Clone: {{exact_clone_result}}</p>
-    <p>Near-miss Clone: {{near_miss_clone_result}}</p>
-    <p>Parameterized Clone: {{parameterized_clone_result}}</p>
-    <p>Function Clone: {{function_clone_result}}</p>
-    <p>Non-contiguous Clone: {{non_contiguous_clone_result}}</p>
-    <p>Structural Clone: {{structural_clone_result}}</p>
-    <p>Reordered Clone: {{reordered_clone_result}}</p>
-    <p>Function Reordered Clone: {{function_reordered_clone_result}}</p>
-    <p>Gapped Clone: {{gapped_clone_result}}</p>
-    <p>Intertwined Clone: {{intertwined_clone_result}}</p>
-    <p>Semantic Clone: {{semantic_clone_result}}</p>
+    <div class="uk-container">
+        <form method="POST">
+            <fieldset class="uk-fieldset">
+<div class="uk-margin">
+                    <legend class="uk-legend">Legend</legend>
+
+                </div>
+
+                <div class="uk-margin">
+                    <textarea class="uk-textarea" name="code1" rows="10" cols="50">{{code1|safe}}</textarea>
+
+                </div>
+                <div class="uk-margin">
+                    <textarea class="uk-textarea" name="code2" rows="10" cols="50">{{code2|safe}}</textarea>
+                </div>
+                <div class="uk-margin">
+                    <select class="uk-select" name="language">
+                        {{language_options_html|safe}}
+                    </select>
+                </div>
+                <div class="uk-margin">
+                    <input class="uk-button" type="submit" value="Compare">
+                </div>
+        </form>
+        <dl class="uk-description-list">
+            {{description_list|safe}}
+        </dl>
+    </div>
+    </fieldset>
 </body>
 
 </html>
-           
         ''', **locals())
 
     return render_template_string('''
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 
 <head>
-    <title>Title</title>
+    <title>Clone Detector</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="css/uikit.min.css" />
@@ -223,18 +252,39 @@ def index():
 </head>
 
 <body>
-    <form method="POST">
-        <textarea name="code1" rows="10" cols="50"></textarea>
-        <textarea name="code2" rows="10" cols="50"></textarea>
-         <select name="language">
-            {{language_options_html}}
-        </select>
-        <input type="submit" value="Compare">
-    </form>
+
+    <div class="uk-container">
+        <form method="POST">
+            <fieldset class="uk-fieldset">
+                <div class="uk-margin">
+                    <legend class="uk-legend">Legend</legend>
+
+                </div>
+
+                <div class="uk-margin">
+                    <textarea class="uk-textarea" name="code1" rows="10" cols="50"></textarea>
+
+                </div>
+                <div class="uk-margin">
+                    <textarea class="uk-textarea" name="code2" rows="10" cols="50"></textarea>
+                </div>
+                <div class="uk-margin">
+                    <select class="uk-select" name="language">
+                        {{language_options_html|safe}}
+                    </select>
+                </div>
+                <div class="uk-margin">
+                    <input class="uk-button" type="submit" value="Compare">
+                </div>
+            </fieldset>
+        </form>
+
+    </div>
 </body>
 
 </html>
-    ''')
+    ''', **locals())
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
