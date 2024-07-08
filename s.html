@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Title</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="css/uikit.min.css" />
+    <script src="js/uikit.min.js"></script>
+    <script src="js/uikit-icons.min.js"></script>
+</head>
+
+<body>
+    <form method="POST">
+        <textarea name="code1" rows="10" cols="50">{{code1}}</textarea>
+        <textarea name="code2" rows="10" cols="50">{{code2}}</textarea>
+        <select name="language">
+            <option value="c" {% if language=='c' %}selected{% endif %}>C</option>
+            <option value="python" {% if language=='python' %}selected{% endif %}>Python</option>
+        </select>
+        <input type="submit" value="Compare">
+    </form>
+    <p>Text Similarity: {{text_sim}}</p>
+    <p>Token Similarity (with order): {{token_sim_with_order}}</p>
+    <p>Token Similarity (with order ignoring comments and whitespaces): {{token_sim_with_order_without_comments}}</p>
+    <p>Token Similarity (without order with comments and whitespaces): {{token_sim}}</p>
+    <p>Token Similarity (without order ignoring comments and whitespaces): {{token_sim_without_comments}}</p>
+    <p>Renamed Clone Similarity: {{renamed_clone_sim}}</p>
+    <p>Exact Clone: {{exact_clone_result}}</p>
+    <p>Near-miss Clone: {{near_miss_clone_result}}</p>
+    <p>Parameterized Clone: {{parameterized_clone_result}}</p>
+    <p>Function Clone: {{function_clone_result}}</p>
+    <p>Non-contiguous Clone: {{non_contiguous_clone_result}}</p>
+    <p>Structural Clone: {{structural_clone_result}}</p>
+    <p>Reordered Clone: {{reordered_clone_result}}</p>
+    <p>Function Reordered Clone: {{function_reordered_clone_result}}</p>
+    <p>Gapped Clone: {{gapped_clone_result}}</p>
+    <p>Intertwined Clone: {{intertwined_clone_result}}</p>
+    <p>Semantic Clone: {{semantic_clone_result}}</p>
+</body>
+
+</html>
