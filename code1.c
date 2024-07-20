@@ -1,19 +1,15 @@
 #include <stdio.h>
-
-// Toplama işlemi
-int sub(int a, int b) {
-    return a - b;
-}
-int add(int a, int b) {
-    return a + b;
-}
-
+#include <string.h>
+ 
 int main() {
-    int result_sub = sub(5, 3);
-    int result_add = add(5, 3);
-    // Sonuçları yazdır
-    printf("Addition: %d\\n", result_add);
-    printf("Subtraction Result: %d\\n", result_sub);
-
+    char str1[100], str2[100];
+ 
+    printf("İlk metni girin: ");
+    gets(str1);
+ 
+    strcpy(str2, str1);
+ 
+    printf("Kopyalanan metin: %s\n", str2);
+ 
     return 0;
 }
