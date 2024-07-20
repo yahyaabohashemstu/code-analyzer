@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string,render_template, send_file
+from flask import Flask, request,render_template
 from clone_detector import clone_detectors,languages
 import os
 import zipfile
@@ -30,12 +30,10 @@ def index():
     for language in languages:
         language_options_html += f'<option value="{language}">{language}</option>'
 
-    code1 = request.form.get('code1')
-    code2 = request.form.get('code2')
-    file1 = request.files.get('file1')
-    file2 = request.files.get('file2')
-    zip1 = request.files.get('zip1')
-    zip2 = request.files.get('zip2')
+    code1 = None
+    code2 = None
+    graph_url1 = None
+    graph_url2 = None
     description_list = ''
     chart_url = None
 
@@ -44,7 +42,14 @@ def index():
         detector = clone_detectors.get(language)
 
         if not detector:
-            return render_template('main.html', **locals())
+            return render_template('main.html', language_options_html=language_options_html)
+
+        code1 = request.form.get('code1')
+        code2 = request.form.get('code2')
+        file1 = request.files.get('file1')
+        file2 = request.files.get('file2')
+        zip1 = request.files.get('zip1')
+        zip2 = request.files.get('zip2')
 
         if zip1 and zipfile.is_zipfile(zip1):
             code1_files = extract_zip(zip1)
@@ -62,19 +67,13 @@ def index():
         clean_code2 = detector.remove_comments_and_whitespace(code2)
 
         text_sim = detector.text_similarity(code1, code2)
-        text_sim = float(text_sim * 100)
         token_sim = detector.token_similarity(code1, code2)
-        token_sim = float(token_sim * 100)
         token_sim_without_comments = detector.token_similarity(clean_code1, clean_code2)
-        token_sim_without_comments = float(token_sim_without_comments * 100)
         token_sim_with_order = detector.token_similarity(code1, code2, with_order=True)
-        token_sim_with_order = float(token_sim_with_order * 100)
         token_sim_with_order_without_comments = detector.token_similarity(clean_code1, clean_code2, with_order=True)
-        token_sim_with_order_without_comments = float(token_sim_with_order_without_comments * 100)
 
         exact_clone_result = detector.is_exact_clone(code1, code2)
         renamed_clone_sim = detector.renamed_clone_similarity(code1, code2)
-        renamed_clone_sim = float(renamed_clone_sim * 100)
         near_miss_clone_result = detector.near_miss_clone_similarity(code1, code2)
         parameterized_clone_result = detector.parameterized_clone_similarity(code1, code2)
         function_clone_result = detector.function_clone_similarity(code1, code2)
@@ -88,23 +87,27 @@ def index():
         graph_sim = detector.graph_similarity(code1, code2)
         combined_similarity = detector.combined_similarity(code1, code2)
 
+        # Generate graph images as base64 strings
+        graph_url1 = detector.graph_to_image(code1)
+        graph_url2 = detector.graph_to_image(code2)
+
         values_list = [
-            ['Text Similarity:', text_sim],
-            ['Token Similarity\n(with order):', token_sim_with_order],
-            ['Token Similarity\n(with order ignoring\ncomments and whitespaces):', token_sim_with_order_without_comments],
-            ['Token Similarity\n(without order with\ncomments and whitespaces):', token_sim],
-            ['Token Similarity\n(without order ignoring\ncomments and whitespaces):', token_sim_without_comments],
+            ['Text Similarity:', text_sim * 100],
+            ['Token Similarity\n(with order):', token_sim_with_order * 100],
+            ['Token Similarity\n(with order ignoring\ncomments and whitespaces):', token_sim_with_order_without_comments * 100],
+            ['Token Similarity\n(without order with\ncomments and whitespaces):', token_sim * 100],
+            ['Token Similarity\n(without order ignoring\ncomments and whitespaces):', token_sim_without_comments * 100],
             ['Graph-Based Similarity:', graph_sim * 100],
             ['Combined Similarity:', combined_similarity * 100]
         ]
 
         all_values_list = [
-            ['Text Similarity', text_sim],
-            ['Token Similarity (with order)', token_sim_with_order],
-            ['Token Similarity (with order ignoring comments and whitespaces)', token_sim_with_order_without_comments],
-            ['Token Similarity (without order with comments and whitespaces)', token_sim],
-            ['Token Similarity (without order ignoring comments and whitespaces)', token_sim_without_comments],
-            ['Renamed Clone Similarity', renamed_clone_sim],
+            ['Text Similarity', text_sim * 100],
+            ['Token Similarity (with order)', token_sim_with_order * 100],
+            ['Token Similarity (with order ignoring comments and whitespaces)', token_sim_with_order_without_comments * 100],
+            ['Token Similarity (without order with comments and whitespaces)', token_sim * 100],
+            ['Token Similarity (without order ignoring comments and whitespaces)', token_sim_without_comments * 100],
+            ['Renamed Clone Similarity', renamed_clone_sim * 100],
             ['Graph-Based Similarity', graph_sim * 100],
             ['Combined Similarity', combined_similarity * 100],
             ['Exact Clone', exact_clone_result],
@@ -118,9 +121,7 @@ def index():
             ['Gapped Clone', gapped_clone_result],
             ['Intertwined Clone', intertwined_clone_result],
             ['Semantic Clone', semantic_clone_result],
-
         ]
-
 
         for i in all_values_list:
             if isinstance(i[1], float):
@@ -153,7 +154,7 @@ def index():
                 </div>
                 '''
             else:
-                status_class = 'true' if i[1] == True else 'false'
+                status_class = 'true' if i[1] else 'false'
                 description_list += f'''
                 <div class="result-item">
                     <div class="result-label">{i[0]}:</div>
@@ -164,8 +165,15 @@ def index():
                 </div>
                 '''
 
-    return render_template('main.html', description_list=description_list,language_options_html=language_options_html,code1=code1,code2=code2)
+    return render_template('main.html',
+                           description_list=description_list,
+                           language_options_html=language_options_html,
+                           code1=code1,
+                           code2=code2,
+                           graph_url1=graph_url1,
+                           graph_url2=graph_url2)
+
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,port=5001)

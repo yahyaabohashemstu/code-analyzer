@@ -1,10 +1,14 @@
 
 
+import base64
+from io import BytesIO
 from tree_sitter_languages import get_parser
 from fuzzywuzzy import fuzz
 import re
 import networkx as nx
-
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 class CloneDetector:
     def __init__(self, language):
         self.parser = language_parsers[language]
@@ -142,6 +146,45 @@ class CloneDetector:
         token_sim = self.token_similarity(code1, code2)
         graph_sim = self.graph_similarity(code1, code2)
         return (text_sim + token_sim + graph_sim) / 3
+
+
+    def parse_code_for_graph(self, code):
+        tree = self.parser.parse(bytes(code, "utf8"))
+        return tree.root_node
+
+    def code_to_graph(self, code):
+        root_node = self.parse_code_for_graph(code)
+        G = nx.DiGraph()
+
+        def add_nodes(node, parent=None):
+            G.add_node(node.id, type=node.type, start=node.start_point, end=node.end_point, label=node.type)
+            if parent:
+                G.add_edge(parent.id, node.id)
+            for child in node.children:
+                add_nodes(child, node)
+
+        add_nodes(root_node)
+        return G
+
+    def draw_graph(self, G):
+        pos = nx.spring_layout(G)
+        labels = nx.get_node_attributes(G, 'label')
+        plt.figure(figsize=(12, 12))
+        nx.draw(G, pos, labels=labels, with_labels=True, node_size=3000, node_color='skyblue', font_size=10, font_color='black', font_weight='bold', edge_color='gray')
+
+    def graph_to_image(self, code):
+        graph = self.code_to_graph(code)
+        pos = nx.spring_layout(graph)
+        labels = nx.get_node_attributes(graph, 'label')
+        plt.figure(figsize=(12, 12))
+        nx.draw(graph, pos, labels=labels, with_labels=True, node_size=3000, node_color='skyblue', font_size=10, font_color='black', font_weight='bold', edge_color='gray')
+
+        img_io = BytesIO()
+        plt.savefig(img_io, format='png')
+        img_io.seek(0)
+        img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+        plt.close()
+        return img_base64
 
 languages = [
     'c', 'python', 'java', 'javascript', 'cpp', 'c_sharp', 'ruby', 'go', 'typescript', 'php', 'kotlin', 'r', 'rust',
