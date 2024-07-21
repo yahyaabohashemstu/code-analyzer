@@ -24,11 +24,10 @@ def extract_zip(file_path):
                         extracted_files.append(f.read())
     return extracted_files
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    language_options_html = ''
-    for language in languages:
-        language_options_html += f'<option value="{language}">{language}</option>'
+    language_options_html = ''.join(f'<option value="{language}">{language}</option>' for language in languages)
 
     code1 = None
     code2 = None
@@ -172,6 +171,7 @@ def index():
                            code2=code2,
                            graph_url1=graph_url1,
                            graph_url2=graph_url2)
+
 
 
 

@@ -2,12 +2,15 @@
 
 import base64
 from io import BytesIO
+from networkx import NetworkXError
 from tree_sitter_languages import get_parser
 from fuzzywuzzy import fuzz
 import re
 import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib
+import plotly.graph_objects as go
+from networkx.drawing.nx_pydot import graphviz_layout
 matplotlib.use('Agg')
 class CloneDetector:
     def __init__(self, language):
@@ -147,7 +150,6 @@ class CloneDetector:
         graph_sim = self.graph_similarity(code1, code2)
         return (text_sim + token_sim + graph_sim) / 3
 
-
     def parse_code_for_graph(self, code):
         tree = self.parser.parse(bytes(code, "utf8"))
         return tree.root_node
@@ -157,7 +159,9 @@ class CloneDetector:
         G = nx.DiGraph()
 
         def add_nodes(node, parent=None):
-            G.add_node(node.id, type=node.type, start=node.start_point, end=node.end_point, label=node.type)
+            node_text = node.text.decode('utf8') if node.child_count == 0 else node.type
+            node_text = f'"{node_text}"'  # Quote labels with special characters
+            G.add_node(node.id, label=node_text)
             if parent:
                 G.add_edge(parent.id, node.id)
             for child in node.children:
@@ -166,24 +170,60 @@ class CloneDetector:
         add_nodes(root_node)
         return G
 
-    def draw_graph(self, G):
-        pos = nx.spring_layout(G)
-        labels = nx.get_node_attributes(G, 'label')
-        plt.figure(figsize=(12, 12))
-        nx.draw(G, pos, labels=labels, with_labels=True, node_size=3000, node_color='skyblue', font_size=10, font_color='black', font_weight='bold', edge_color='gray')
-
     def graph_to_image(self, code):
         graph = self.code_to_graph(code)
+
         pos = nx.spring_layout(graph)
-        labels = nx.get_node_attributes(graph, 'label')
-        plt.figure(figsize=(12, 12))
-        nx.draw(graph, pos, labels=labels, with_labels=True, node_size=3000, node_color='skyblue', font_size=10, font_color='black', font_weight='bold', edge_color='gray')
+        edge_trace = go.Scatter(
+            x=[],
+            y=[],
+            line=dict(width=0.5, color='#888'),
+            hoverinfo='none',
+            mode='lines'
+        )
+
+        for edge in graph.edges():
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_trace['x'] += (x0, x1, None)
+            edge_trace['y'] += (y0, y1, None)
+
+        node_trace = go.Scatter(
+            x=[],
+            y=[],
+            text=[],
+            mode='markers+text',
+            hoverinfo='text',
+            marker=dict(
+                showscale=True,
+                colorscale='YlGnBu',
+                size=10,
+                colorbar=dict(
+                    thickness=15,
+                    title='Node Connections',
+                    xanchor='left',
+                    titleside='right'
+                )
+            )
+        )
+
+        for node in graph.nodes():
+            x, y = pos[node]
+            node_trace['x'] += (x,)
+            node_trace['y'] += (y,)
+            node_trace['text'] += (graph.nodes[node]['label'],)
+
+        fig = go.Figure(data=[edge_trace, node_trace],
+                        layout=go.Layout(
+                            showlegend=False,
+                            xaxis=dict(showgrid=False, zeroline=False),
+                            yaxis=dict(showgrid=False, zeroline=False)
+                        ))
 
         img_io = BytesIO()
-        plt.savefig(img_io, format='png')
+        fig.write_image(img_io, format='png')
         img_io.seek(0)
         img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
-        plt.close()
         return img_base64
 
 languages = [
